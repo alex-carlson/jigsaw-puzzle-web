@@ -330,7 +330,6 @@ function PuzzlePiece(x, y) {
     div.style.left = scatterStartLeft + 'px';
     div.style.top = scatterStartTop + 'px';
     div.style.boxSizing = 'border-box';
-    div.style.clipPath = 'path("' + createPiecePath(x, y) + '")';
     div.style.cursor = 'grab';
     div.style.zIndex = 1000;
     div.style.setProperty('--scatter-left', scatterStartLeft + 'px');
@@ -362,6 +361,9 @@ function PuzzlePiece(x, y) {
     var backFace = document.createElement('div');
     frontFace.className = 'pieceFace pieceFront';
     backFace.className = 'pieceFace pieceBack';
+    var pieceClipPath = 'path("' + createPiecePath(x, y) + '")';
+    frontFace.style.clipPath = pieceClipPath;
+    backFace.style.clipPath = pieceClipPath;
     frontFace.style.backgroundImage = 'url(' + url + ')';
     frontFace.style.backgroundPosition = (tabDepth - x * puzzlePieceWidth) + 'px ' + (tabDepth - y * puzzlePieceHeight) + 'px';
     frontFace.style.backgroundSize = imageWidth + 'px ' + imageHeight + 'px';
