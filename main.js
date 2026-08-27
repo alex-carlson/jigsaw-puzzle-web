@@ -4,6 +4,10 @@ var url = 'https://picsum.photos/800/600?random=' + Date.now() + Math.random();
 image.src = url;
 imagePreview.src = url;
 var puzzleContainer = document.getElementById('puzzleContainer');
+var shelf = document.getElementById('pieceShelf');
+var shelfStorage = document.getElementById('shelfStorage');
+var dragLayer = document.getElementById('dragLayer');
+var shelfToggle = document.getElementById('shelfToggle');
 var puzzleBoard = document.querySelector('.wrapper');
 var pieceCountMenu = document.getElementById('pieceCount');
 var imageUpload = document.getElementById('imageUpload');
@@ -17,6 +21,14 @@ var zoomLevel = 1;
 
 var imageWidth = 800;
 var imageHeight = 600;
+
+shelfToggle.addEventListener('click', function () {
+    var isOpen = shelf.classList.toggle('is-open');
+    shelf.classList.toggle('is-closed', !isOpen);
+    shelfToggle.textContent = isOpen ? '\u2039' : '\u203a';
+    shelfToggle.setAttribute('aria-label', isOpen ? 'Close shelf' : 'Open shelf');
+    shelfToggle.setAttribute('title', isOpen ? 'Close shelf' : 'Open shelf');
+});
 
 function setZoom(nextZoom) {
     zoomLevel = Math.max(0.5, Math.min(2, nextZoom));
@@ -161,6 +173,7 @@ function createPuzzle(pieceCount, columns) {
     tabDepth = Math.min(puzzlePieceWidth, puzzlePieceHeight) * 0.22;
     puzzlePieces = [];
     puzzleContainer.replaceChildren();
+    shelfStorage.replaceChildren();
     createEdgeMap();
 
     for (var i = 0; i < width; i++) {
@@ -257,7 +270,7 @@ function isBackgroundDragTarget(target) {
         return true;
     }
 
-    return !target.closest('.taskBar, .puzzlePiece, .imageMenu, .imageMenuPanel, button, select, input, summary, aside');
+    return !target.closest('.taskBar, .puzzlePiece, .imageMenu, .imageMenuPanel, .pieceShelf, button, select, input, summary, aside');
 }
 
 function stopBackgroundDrag() {
@@ -308,6 +321,12 @@ zoomOutButton.addEventListener('click', function () {
 function PuzzlePiece(x, y) {
     this.x = x;
     this.y = y;
+    this.edges = {
+        top: y === 0 ? null : horizontalEdges[y][x],
+        right: x === width - 1 ? null : verticalEdges[y][x + 1],
+        bottom: y === height - 1 ? null : horizontalEdges[y + 1][x],
+        left: x === 0 ? null : verticalEdges[y][x]
+    };
 
     var pieceWidth = puzzlePieceWidth + tabDepth * 2;
     var pieceHeight = puzzlePieceHeight + tabDepth * 2;
@@ -346,6 +365,9 @@ function PuzzlePiece(x, y) {
     div._hasRotated = false;
     div._spawnFlipped = Math.random() < 0.5;
     div._revealedOnce = !div._spawnFlipped;
+    this.element = div;
+    div._pieceData = this;
+    div._group = [div];
 
     div.addEventListener('animationend', function (event) {
         if (event.animationName !== 'pieceScatter') {
@@ -377,6 +399,82 @@ function PuzzlePiece(x, y) {
     var offsetY;
     var pointerStartX;
     var pointerStartY;
+    var groupStartPositions;
+    var groupStartLeft;
+    var groupStartTop;
+    var dragSurface;
+    var dragScale;
+    var grabOffsetLeft;
+    var grabOffsetTop;
+    var originSurface;
+    var originPositions;
+    var latestPointerX;
+    var latestPointerY;
+    var autoScrollFrame;
+
+    function restoreGroupToOrigin() {
+        originPositions.forEach(function (position) {
+            originSurface.appendChild(position.piece);
+        });
+        originPositions.forEach(function (position) {
+            position.piece.style.left = position.left + 'px';
+            position.piece.style.top = position.top + 'px';
+        });
+    }
+
+    function updateDraggedGroup(clientX, clientY) {
+        var containerBounds = dragSurface.getBoundingClientRect();
+        div._containerBounds = containerBounds;
+        var nextLeft = (clientX - containerBounds.left - grabOffsetLeft) / dragScale;
+        var nextTop = (clientY - containerBounds.top - grabOffsetTop) / dragScale;
+        var horizontalDistance = nextLeft - groupStartLeft;
+        var verticalDistance = nextTop - groupStartTop;
+        groupStartPositions.forEach(function (position) {
+            position.piece.style.left = position.left + horizontalDistance + 'px';
+            position.piece.style.top = position.top + verticalDistance + 'px';
+        });
+    }
+
+    function getEdgeScrollSpeed(pointerPosition, windowSize) {
+        var edgeDistance = navigator.maxTouchPoints > 0 ? 120 : 72;
+        var maximumSpeed = navigator.maxTouchPoints > 0 ? 12 : 18;
+        if (pointerPosition < edgeDistance) {
+            return -maximumSpeed * (1 - pointerPosition / edgeDistance);
+        }
+        if (pointerPosition > windowSize - edgeDistance) {
+            return maximumSpeed * (1 - (windowSize - pointerPosition) / edgeDistance);
+        }
+        return 0;
+    }
+
+    function scrollDocument(horizontalSpeed, verticalSpeed) {
+        var scrollContainer = document.scrollingElement || document.documentElement;
+        var nextScrollLeft = Math.max(0, Math.min(
+            scrollContainer.scrollLeft + horizontalSpeed,
+            scrollContainer.scrollWidth - scrollContainer.clientWidth
+        ));
+        var nextScrollTop = Math.max(0, Math.min(
+            scrollContainer.scrollTop + verticalSpeed,
+            scrollContainer.scrollHeight - scrollContainer.clientHeight
+        ));
+        scrollContainer.scrollLeft = nextScrollLeft;
+        scrollContainer.scrollTop = nextScrollTop;
+    }
+
+    function autoScrollWhileDragging() {
+        if (!isDragging) {
+            autoScrollFrame = null;
+            return;
+        }
+
+        var horizontalSpeed = getEdgeScrollSpeed(latestPointerX, window.innerWidth);
+        var verticalSpeed = getEdgeScrollSpeed(latestPointerY, window.innerHeight);
+        if (horizontalSpeed || verticalSpeed) {
+            scrollDocument(horizontalSpeed, verticalSpeed);
+            updateDraggedGroup(latestPointerX, latestPointerY);
+        }
+        autoScrollFrame = requestAnimationFrame(autoScrollWhileDragging);
+    }
 
     function flipPieceToFrontOnce() {
         if (!div._revealedOnce) {
@@ -385,10 +483,12 @@ function PuzzlePiece(x, y) {
         }
     }
 
-    function rotatePiece() {
+    function rotatePiece(snapToNearest) {
         var rotation = parseFloat(div.style.getPropertyValue('--piece-rotation')) || 0;
         if (!div._hasRotated) {
-            rotation = Math.round((rotation + 90) / 90) * 90;
+            rotation = snapToNearest
+                ? Math.round(rotation / 90) * 90
+                : Math.round((rotation + 90) / 90) * 90;
             div._hasRotated = true;
         } else {
             rotation += 90;
@@ -406,36 +506,219 @@ function PuzzlePiece(x, y) {
         div.appendChild(lockBurst);
     }
 
-    function trySnapPiece() {
-        var rotation = parseInt(div.style.getPropertyValue('--piece-rotation'), 10) % 360;
-        var horizontalDistance = div.offsetLeft - targetLeft;
-        var verticalDistance = div.offsetTop - targetTop;
-        var isCloseEnough = Math.sqrt(horizontalDistance * horizontalDistance + verticalDistance * verticalDistance) <= snapDistance;
+    function getPieceRotation(piece) {
+        var rotation = parseInt(piece.style.getPropertyValue('--piece-rotation'), 10) % 360;
+        return rotation < 0 ? rotation + 360 : rotation;
+    }
 
-        if (rotation < 0) {
-            rotation += 360;
+    function moveGroup(group, horizontalDistance, verticalDistance) {
+        group.forEach(function (piece) {
+            piece.style.left = piece.offsetLeft + horizontalDistance + 'px';
+            piece.style.top = piece.offsetTop + verticalDistance + 'px';
+        });
+    }
+
+    function moveGroupToSurface(group, draggedPiece, targetSurface, clientX, clientY, grabOffsetLeft, grabOffsetTop) {
+        var targetBounds = targetSurface.getBoundingClientRect();
+        var targetScale = targetSurface === puzzleContainer ? zoomLevel : 1;
+        var targetLeft = (clientX - targetBounds.left - grabOffsetLeft) / targetScale;
+        var targetTop = (clientY - targetBounds.top - grabOffsetTop) / targetScale;
+        var leftOffsets = group.map(function (piece) { return piece.offsetLeft - draggedPiece.offsetLeft; });
+        var topOffsets = group.map(function (piece) { return piece.offsetTop - draggedPiece.offsetTop; });
+
+        group.forEach(function (piece) {
+            targetSurface.appendChild(piece);
+        });
+        group.forEach(function (piece, index) {
+            piece.style.left = targetLeft + leftOffsets[index] + 'px';
+            piece.style.top = targetTop + topOffsets[index] + 'px';
+        });
+    }
+
+    function moveGroupToDragLayer(group) {
+        var dragBounds = dragLayer.getBoundingClientRect();
+        var screenPositions = group.map(function (piece) {
+            var bounds = piece.getBoundingClientRect();
+            return {
+                piece: piece,
+                left: bounds.left - dragBounds.left + (bounds.width - piece.offsetWidth) / 2,
+                top: bounds.top - dragBounds.top + (bounds.height - piece.offsetHeight) / 2
+            };
+        });
+
+        group.forEach(function (piece) {
+            dragLayer.appendChild(piece);
+        });
+        screenPositions.forEach(function (position) {
+            position.piece.style.left = position.left + 'px';
+            position.piece.style.top = position.top + 'px';
+        });
+    }
+
+    function rotateGroup(pivotLeft, pivotTop, onComplete) {
+        var group = div._group;
+        group.forEach(function (piece) {
+            piece._isRotating = true;
+        });
+        var startTime;
+        var duration = 180;
+        var pieces = group.map(function (piece) {
+            var pieceCenterLeft = piece.offsetLeft + piece.offsetWidth / 2;
+            var pieceCenterTop = piece.offsetTop + piece.offsetHeight / 2;
+            var rotation = getPieceRotation(piece);
+            return {
+                piece: piece,
+                centerLeft: pieceCenterLeft,
+                centerTop: pieceCenterTop,
+                rotation: rotation,
+                targetLeft: pivotLeft - (pieceCenterTop - pivotTop) - piece.offsetWidth / 2,
+                targetTop: pivotTop + (pieceCenterLeft - pivotLeft) - piece.offsetHeight / 2,
+                targetRotation: rotation + 90
+            };
+        });
+
+        function animate(timestamp) {
+            startTime = startTime || timestamp;
+            var progress = Math.min(1, (timestamp - startTime) / duration);
+            var easedProgress = 1 - Math.pow(1 - progress, 3);
+
+            pieces.forEach(function (item) {
+                var centerLeft = item.centerLeft + (item.targetLeft + item.piece.offsetWidth / 2 - item.centerLeft) * easedProgress;
+                var centerTop = item.centerTop + (item.targetTop + item.piece.offsetHeight / 2 - item.centerTop) * easedProgress;
+                var rotation = item.rotation + (item.targetRotation - item.rotation) * easedProgress;
+                item.piece.style.left = centerLeft - item.piece.offsetWidth / 2 + 'px';
+                item.piece.style.top = centerTop - item.piece.offsetHeight / 2 + 'px';
+                item.piece.style.setProperty('--piece-rotation', rotation + 'deg');
+            });
+
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+                return;
+            }
+
+            pieces.forEach(function (item) {
+                item.piece.style.left = item.targetLeft + 'px';
+                item.piece.style.top = item.targetTop + 'px';
+                item.piece.style.setProperty('--piece-rotation', item.targetRotation + 'deg');
+                item.piece._hasRotated = true;
+                item.piece._isRotating = false;
+            });
+            if (onComplete) {
+                onComplete();
+            }
         }
 
-        if (isCloseEnough && rotation === 0 && !div.classList.contains('is-flipped')) {
-            div.style.left = targetLeft + 'px';
-            div.style.top = targetTop + 'px';
-            div.classList.add('is-locked');
+        requestAnimationFrame(animate);
+    }
+
+    function mergeGroups(firstGroup, secondGroup) {
+        var mergedGroup = firstGroup.concat(secondGroup);
+        mergedGroup.forEach(function (piece) {
+            piece._group = mergedGroup;
+            piece.classList.add('is-grouped');
+        });
+    }
+
+    function tryConnectToNeighbor() {
+        var group = div._group;
+        var rotation = getPieceRotation(div);
+
+        if (div.classList.contains('is-flipped')) {
+            return false;
+        }
+
+        for (var pieceIndex = 0; pieceIndex < puzzlePieces.length; pieceIndex++) {
+            var other = puzzlePieces[pieceIndex].element;
+            if (other === div || group.indexOf(other) !== -1 || other.parentElement !== div.parentElement || other.classList.contains('is-flipped') || getPieceRotation(other) !== rotation) {
+                continue;
+            }
+
+            var columnDistance = div._pieceData.x - other._pieceData.x;
+            var rowDistance = div._pieceData.y - other._pieceData.y;
+            if (Math.abs(columnDistance) + Math.abs(rowDistance) !== 1) {
+                continue;
+            }
+
+            var matchingNodes = columnDistance === 1
+                ? div._pieceData.edges.left === other._pieceData.edges.right
+                : columnDistance === -1
+                    ? div._pieceData.edges.right === other._pieceData.edges.left
+                    : rowDistance === 1
+                        ? div._pieceData.edges.top === other._pieceData.edges.bottom
+                        : div._pieceData.edges.bottom === other._pieceData.edges.top;
+            if (!matchingNodes) {
+                continue;
+            }
+
+            var angle = rotation * Math.PI / 180;
+            var logicalOffsetLeft = columnDistance * puzzlePieceWidth;
+            var logicalOffsetTop = rowDistance * puzzlePieceHeight;
+            var rotatedOffsetLeft = logicalOffsetLeft * Math.cos(angle) - logicalOffsetTop * Math.sin(angle);
+            var rotatedOffsetTop = logicalOffsetLeft * Math.sin(angle) + logicalOffsetTop * Math.cos(angle);
+            var expectedLeft = other.offsetLeft + rotatedOffsetLeft;
+            var expectedTop = other.offsetTop + rotatedOffsetTop;
+            var horizontalDistance = expectedLeft - div.offsetLeft;
+            var verticalDistance = expectedTop - div.offsetTop;
+            var isCloseEnough = Math.sqrt(horizontalDistance * horizontalDistance + verticalDistance * verticalDistance) <= snapDistance;
+
+            if (isCloseEnough) {
+                moveGroup(group, horizontalDistance, verticalDistance);
+                mergeGroups(group, other._group);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    function trySnapPiece() {
+        tryConnectToNeighbor();
+        var group = div._group;
+        var isSolved = group.every(function (piece) {
+            var pieceTargetLeft = piece._pieceData.x * puzzlePieceWidth - tabDepth;
+            var pieceTargetTop = piece._pieceData.y * puzzlePieceHeight - tabDepth;
+            var horizontalDistance = piece.offsetLeft - pieceTargetLeft;
+            var verticalDistance = piece.offsetTop - pieceTargetTop;
+            return getPieceRotation(piece) === 0 && !piece.classList.contains('is-flipped') &&
+                Math.sqrt(horizontalDistance * horizontalDistance + verticalDistance * verticalDistance) <= snapDistance;
+        });
+
+        if (isSolved) {
+            group.forEach(function (piece) {
+                var pieceTargetLeft = piece._pieceData.x * puzzlePieceWidth - tabDepth;
+                var pieceTargetTop = piece._pieceData.y * puzzlePieceHeight - tabDepth;
+                piece.style.left = pieceTargetLeft + 'px';
+                piece.style.top = pieceTargetTop + 'px';
+                piece.classList.add('is-locked');
+            });
             showLockEffect();
         }
     }
 
     div.addEventListener('pointerdown', function (event) {
-        if (event.button !== 0 || div.classList.contains('is-locked')) {
+        if (event.button !== 0 || div.classList.contains('is-locked') || div._isRotating) {
             return;
         }
 
-        var containerBounds = puzzleContainer.getBoundingClientRect();
+        originSurface = div.parentElement;
+        originPositions = div._group.map(function (piece) {
+            return { piece: piece, left: piece.offsetLeft, top: piece.offsetTop };
+        });
+        var pieceBounds = div.getBoundingClientRect();
+        grabOffsetLeft = event.clientX - pieceBounds.left;
+        grabOffsetTop = event.clientY - pieceBounds.top;
+        moveGroupToDragLayer(div._group);
+        dragSurface = dragLayer;
+        dragScale = 1;
+        var containerBounds = dragSurface.getBoundingClientRect();
         isDragging = true;
         hasMoved = false;
         pointerStartX = event.clientX;
         pointerStartY = event.clientY;
-        offsetX = (event.clientX - containerBounds.left) / zoomLevel - div.offsetLeft;
-        offsetY = (event.clientY - containerBounds.top) / zoomLevel - div.offsetTop;
+        latestPointerX = event.clientX;
+        latestPointerY = event.clientY;
+        offsetX = (event.clientX - containerBounds.left) / dragScale - div.offsetLeft;
+        offsetY = (event.clientY - containerBounds.top) / dragScale - div.offsetTop;
         div.style.zIndex = 1001;
         div.style.cursor = 'grabbing';
         div.classList.add('is-grabbed');
@@ -443,6 +726,11 @@ function PuzzlePiece(x, y) {
         event.preventDefault();
 
         div._containerBounds = containerBounds;
+        groupStartPositions = div._group.map(function (piece) {
+            return { piece: piece, left: piece.offsetLeft, top: piece.offsetTop };
+        });
+        groupStartLeft = div.offsetLeft;
+        groupStartTop = div.offsetTop;
     });
 
     div.addEventListener('pointermove', function (event) {
@@ -450,13 +738,16 @@ function PuzzlePiece(x, y) {
             return;
         }
 
+        latestPointerX = event.clientX;
+        latestPointerY = event.clientY;
         if (Math.abs(event.clientX - pointerStartX) > 5 || Math.abs(event.clientY - pointerStartY) > 5) {
             hasMoved = true;
         }
 
-        var containerBounds = div._containerBounds;
-        div.style.left = (event.clientX - containerBounds.left) / zoomLevel - offsetX + 'px';
-        div.style.top = (event.clientY - containerBounds.top) / zoomLevel - offsetY + 'px';
+        updateDraggedGroup(event.clientX, event.clientY);
+        if (hasMoved && !autoScrollFrame) {
+            autoScrollFrame = requestAnimationFrame(autoScrollWhileDragging);
+        }
     });
 
     div.addEventListener('pointerup', function (event) {
@@ -465,17 +756,42 @@ function PuzzlePiece(x, y) {
         }
 
         isDragging = false;
+        if (autoScrollFrame) {
+            cancelAnimationFrame(autoScrollFrame);
+            autoScrollFrame = null;
+        }
         div.style.zIndex = 1000;
         div.style.cursor = 'grab';
         div.classList.remove('is-grabbed');
         if (!hasMoved) {
+            restoreGroupToOrigin();
             if (!div._revealedOnce) {
                 flipPieceToFrontOnce();
+                rotatePiece(true);
+            } else if (div._group.length > 1) {
+                var rotationBounds = originSurface.getBoundingClientRect();
+                var rotationScale = originSurface === puzzleContainer ? zoomLevel : 1;
+                var pivotLeft = (event.clientX - rotationBounds.left) / rotationScale;
+                var pivotTop = (event.clientY - rotationBounds.top) / rotationScale;
+                rotateGroup(pivotLeft, pivotTop, trySnapPiece);
+                div.releasePointerCapture(event.pointerId);
+                return;
             } else {
-                rotatePiece();
+                rotatePiece(false);
+            }
+        } else {
+            var shelfBounds = shelf.getBoundingClientRect();
+            var droppedInShelf = shelf.classList.contains('is-open') &&
+                event.clientX >= shelfBounds.left && event.clientX <= shelfBounds.right &&
+                event.clientY >= shelfBounds.top && event.clientY <= shelfBounds.bottom;
+            var targetSurface = droppedInShelf ? shelfStorage : puzzleContainer;
+            if (dragSurface !== targetSurface) {
+                moveGroupToSurface(div._group, div, targetSurface, event.clientX, event.clientY, grabOffsetLeft, grabOffsetTop);
             }
         }
-        trySnapPiece();
+        if (div.parentElement === puzzleContainer) {
+            trySnapPiece();
+        }
         div.releasePointerCapture(event.pointerId);
     });
 
@@ -485,6 +801,11 @@ function PuzzlePiece(x, y) {
         }
 
         isDragging = false;
+        if (autoScrollFrame) {
+            cancelAnimationFrame(autoScrollFrame);
+            autoScrollFrame = null;
+        }
+        restoreGroupToOrigin();
         div.style.zIndex = 1000;
         div.style.cursor = 'grab';
         div.classList.remove('is-grabbed');

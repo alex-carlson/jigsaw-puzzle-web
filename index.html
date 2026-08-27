@@ -3,15 +3,22 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🧩 Puzzle</title>
+    <title>Jigsaw Puzzle</title>
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
+    <aside id="pieceShelf" class="is-closed">
+        <div class="shelfHeader">
+            <span>Shelf</span>
+            <button id="shelfToggle" type="button" aria-label="Open shelf" title="Open shelf">&rsaquo;</button>
+        </div>
+        <div id="shelfStorage"></div>
+    </aside>
+    <div id="dragLayer"></div>
     <header class="taskBar">
-        <h1 aria-label="Jigsaw puzzle">🧩</h1>
+        <h1 aria-label="Jigsaw puzzle">&#129513;</h1>
         <label for="pieceCount">Pieces</label>
         <select id="pieceCount">
             <option value="24" data-columns="6">24</option>
@@ -20,18 +27,14 @@
             <option value="192" data-columns="16">192</option>
         </select>
         <details class="imageMenu">
-            <summary>
-                <span class="icon" data-lucide="upload" aria-hidden="true"></span>
-                <span>Image</span>
-            </summary>
+            <summary><span class="icon" aria-hidden="true">&#128444;</span><span>Image</span></summary>
             <div class="imageMenuPanel">
                 <label for="imageUpload">Upload image</label>
                 <input id="imageUpload" type="file" accept="image/*">
             </div>
         </details>
         <button id="newGame" type="button" aria-label="New game">
-            <span class="icon" data-lucide="refresh-cw" aria-hidden="true"></span>
-            <span class="buttonLabel">New game</span>
+            <span class="icon" aria-hidden="true">&#8635;</span><span class="buttonLabel">New game</span>
         </button>
     </header>
     <div id="viewport">
@@ -42,25 +45,13 @@
             </div>
         </div>
     </div>
-    <aside id="imagePreview">
-        <img id="imagePreviewSource" alt="Puzzle image preview">
-    </aside>
+    <aside id="imagePreview"><img id="imagePreviewSource" alt="Puzzle image preview"></aside>
     <nav class="viewControls" aria-label="View controls">
-        <button id="zoomOut" type="button" aria-label="Zoom out" title="Zoom out">
-            <span class="icon" data-lucide="zoom-out" aria-hidden="true"></span>
-        </button>
-        <button id="recenterView" type="button" aria-label="Recenter view" title="Recenter view">
-            <span class="icon" data-lucide="crosshair" aria-hidden="true"></span>
-        </button>
-        <button id="zoomIn" type="button" aria-label="Zoom in" title="Zoom in">
-            <span class="icon" data-lucide="zoom-in" aria-hidden="true"></span>
-        </button>
+        <button id="zoomOut" type="button" aria-label="Zoom out" title="Zoom out">&minus;</button>
+        <button id="recenterView" type="button" aria-label="Recenter view" title="Recenter view">&#8982;</button>
+        <button id="zoomIn" type="button" aria-label="Zoom in" title="Zoom in">&plus;</button>
     </nav>
+    <script src="main.js"></script>
 </body>
-<script src="https://unpkg.com/lucide@latest"></script>
-<script>
-    lucide.createIcons();
-</script>
-<script src="main.js"></script>
 
 </html>
