@@ -10,12 +10,31 @@
 </head>
 
 <body>
+    <header class="taskBar">
+        <h1>🧩</h1>
+        <label for="pieceCount">Pieces</label>
+        <select id="pieceCount">
+            <option value="24" data-columns="6">24</option>
+            <option value="48" data-columns="8">48</option>
+            <option value="96" data-columns="12" selected>96</option>
+            <option value="192" data-columns="16">192</option>
+        </select>
+        <details class="imageMenu">
+            <summary>Image</summary>
+            <div class="imageMenuPanel">
+                <label for="imageUpload">Upload image</label>
+                <input id="imageUpload" type="file" accept="image/*">
+            </div>
+        </details>
+        <button id="resetGame" type="button">Reset</button>
+        <button id="newGame" type="button">New game</button>
+    </header>
     <div class="wrapper">
-        <img id="puzzleSrc" src="https://picsum.photos/seed/puzzle/800/600">
+        <img id="puzzleSrc" alt="">
         <div id="puzzleContainer"></div>
     </div>
     <aside id="imagePreview">
-        <img src="https://picsum.photos/seed/puzzle/800/600" alt="Puzzle image preview">
+        <img id="imagePreviewSource" alt="Puzzle image preview">
     </aside>
 </body>
 <script src="main.js"></script>

@@ -1,15 +1,113 @@
 body {
     padding: 25px;
-    background: url("/images/bg.avif") no-repeat center center fixed;
+    padding-top: 88px;
+    overflow-x: hidden;
+    background: url("images/bg.avif") no-repeat center center fixed;
     background-size: cover;
+}
+
+.taskBar {
+    position: fixed;
+    z-index: 20;
+    top: 0;
+    right: 0;
+    left: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+    padding: 0 25px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.35);
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(8px);
+}
+
+.taskBar h1 {
+    margin: 0 auto 0 0;
+    font-size: 1.2rem;
+}
+
+.taskBar label {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.taskBar select {
+    min-width: 72px;
+    padding: 7px 9px;
+    border: 1px solid rgba(0, 0, 0, 0.45);
+    border-radius: 4px;
+    background: white;
+    font: inherit;
+}
+
+.taskBar button {
+    padding: 7px 10px;
+    border: 1px solid rgba(0, 0, 0, 0.45);
+    border-radius: 4px;
+    background: white;
+    cursor: pointer;
+    font: inherit;
+}
+
+.taskBar button:hover,
+.imageMenu summary:hover,
+.taskBar select:hover {
+    background: #f0f0f0;
+}
+
+.imageMenu {
+    position: relative;
+}
+
+.imageMenu summary {
+    padding: 7px 9px;
+    border: 1px solid rgba(0, 0, 0, 0.45);
+    border-radius: 4px;
+    background: white;
+    cursor: pointer;
+    font-size: 0.9rem;
+    list-style: none;
+}
+
+.imageMenu summary::-webkit-details-marker {
+    display: none;
+}
+
+.imageMenuPanel {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 8px);
+    right: 0;
+    display: grid;
+    gap: 8px;
+    width: 220px;
+    padding: 12px;
+    border: 1px solid rgba(0, 0, 0, 0.35);
+    border-radius: 4px;
+    background: white;
+    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.25);
+}
+
+.imageMenuPanel label {
+    font-size: 0.85rem;
+}
+
+.imageMenuPanel input {
+    width: 100%;
+    font-size: 0.78rem;
 }
 
 .wrapper {
     position: relative;
     display: block;
     margin: 0 auto;
-    width: 800px;
-    height: 600px;
+    width: 100%;
+    max-width: 800px;
+    aspect-ratio: 4 / 3;
+    height: auto;
+    perspective: 900px;
 }
 
 .wrapper::before {
@@ -26,22 +124,22 @@ body {
     z-index: 1;
     top: 0;
     left: 0;
-    width: 800px;
-    height: 600px;
+    width: 100%;
+    height: 100%;
 }
 
 #puzzleSrc {
     display: block;
     visibility: hidden;
-    width: 800px;
-    height: 600px;
+    width: 100%;
+    height: 100%;
     object-fit: cover;
 }
 
 #imagePreview {
     position: fixed;
     z-index: 10;
-    top: 16px;
+    top: 72px;
     right: 16px;
     width: min(150px, 22vw);
     padding: 6px;
@@ -62,9 +160,42 @@ body {
     position: absolute;
     touch-action: none;
     transform: rotate(var(--piece-rotation)) scale(1);
+    transform-style: preserve-3d;
     filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.45));
     transition: transform 160ms ease, filter 160ms ease;
     will-change: transform, filter;
+}
+
+.pieceFace {
+    position: absolute;
+    inset: 0;
+    backface-visibility: visible;
+    background-repeat: no-repeat;
+}
+
+.pieceFront {
+    background-color: #111;
+    visibility: visible;
+}
+
+.pieceBack {
+    transform: rotateY(180deg);
+    background-color: #150b97;
+    background-image: none;
+    visibility: hidden;
+    box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.18);
+}
+
+.puzzlePiece.is-flipped {
+    transform: rotate(var(--piece-rotation)) rotateY(180deg) scale(1);
+}
+
+.puzzlePiece.is-flipped .pieceFront {
+    visibility: hidden;
+}
+
+.puzzlePiece.is-flipped .pieceBack {
+    visibility: visible;
 }
 
 .puzzlePiece:hover {
@@ -72,8 +203,57 @@ body {
     filter: drop-shadow(0 5px 5px rgba(0, 0, 0, 0.42));
 }
 
+.puzzlePiece.is-flipped:hover {
+    transform: rotate(var(--piece-rotation)) rotateY(180deg) scale(1.03);
+}
+
 .puzzlePiece.is-grabbed {
     transform: rotate(var(--piece-rotation)) scale(1.07) translateY(-3px);
     filter: drop-shadow(0 10px 8px rgba(0, 0, 0, 0.5));
     transition-duration: 100ms;
+}
+
+.puzzlePiece.is-flipped.is-grabbed {
+    transform: rotate(var(--piece-rotation)) rotateY(180deg) scale(1.07) translateY(-3px);
+}
+
+.puzzlePiece.is-locked {
+    cursor: default;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+}
+
+@media (max-width: 600px) {
+    body {
+        padding: 76px 12px 20px;
+    }
+
+    .taskBar {
+        flex-wrap: wrap;
+        gap: 7px 8px;
+        min-height: 52px;
+        padding: 6px 12px;
+    }
+
+    .taskBar h1 {
+        margin-right: auto;
+    }
+
+    .taskBar label {
+        display: none;
+    }
+
+    .taskBar button,
+    .taskBar select,
+    .imageMenu summary {
+        padding: 6px 8px;
+        font-size: 0.82rem;
+    }
+
+    #imagePreview {
+        top: auto;
+        right: 12px;
+        bottom: 12px;
+        width: 92px;
+        padding: 4px;
+    }
 }
