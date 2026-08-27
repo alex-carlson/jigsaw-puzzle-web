@@ -9,11 +9,20 @@ var pieceCountMenu = document.getElementById('pieceCount');
 var imageUpload = document.getElementById('imageUpload');
 var newGameButton = document.getElementById('newGame');
 var recenterViewButton = document.getElementById('recenterView');
+var zoomInButton = document.getElementById('zoomIn');
+var zoomOutButton = document.getElementById('zoomOut');
 var world = document.getElementById('world');
 var puzzlePieceCount;
+var zoomLevel = 1;
 
 var imageWidth = 800;
 var imageHeight = 600;
+
+function setZoom(nextZoom) {
+    zoomLevel = Math.max(0.5, Math.min(2, nextZoom));
+    world.style.transform = 'scale(' + zoomLevel + ')';
+    recenterView();
+}
 
 var width;
 var height;
@@ -109,15 +118,15 @@ function createPiecePath(x, y) {
 
 function getEdgeSpawnPosition(pieceWidth, pieceHeight) {
     var side = Math.floor(Math.random() * 4);
-    var horizontalPosition = Math.random() * (imageWidth - pieceWidth);
-    var verticalPosition = Math.random() * (imageHeight - pieceHeight);
-    var horizontalOffset = (Math.random() - 0.5) * pieceWidth * 0.5;
-    var verticalOffset = (Math.random() - 0.5) * pieceHeight * 0.5;
-    var visiblePart = 0.35;
+    var horizontalPosition = Math.random() * (imageWidth + pieceWidth * 2) - pieceWidth;
+    var verticalPosition = Math.random() * (imageHeight + pieceHeight * 2) - pieceHeight;
+    var horizontalOffset = (Math.random() - 0.5) * pieceWidth * 1.5;
+    var verticalOffset = (Math.random() - 0.5) * pieceHeight * 1.5;
+    var visiblePart = -0.35;
 
     if (side === 0) {
         return {
-            left: Math.max(0, Math.min(imageWidth - pieceWidth, horizontalPosition + horizontalOffset)),
+            left: horizontalPosition + horizontalOffset,
             top: -pieceHeight * (1 - visiblePart) + verticalOffset
         };
     }
@@ -125,20 +134,20 @@ function getEdgeSpawnPosition(pieceWidth, pieceHeight) {
     if (side === 1) {
         return {
             left: imageWidth - pieceWidth * visiblePart + horizontalOffset,
-            top: Math.max(0, Math.min(imageHeight - pieceHeight, verticalPosition + verticalOffset))
+            top: verticalPosition + verticalOffset
         };
     }
 
     if (side === 2) {
         return {
-            left: Math.max(0, Math.min(imageWidth - pieceWidth, horizontalPosition + horizontalOffset)),
+            left: horizontalPosition + horizontalOffset,
             top: imageHeight - pieceHeight * visiblePart + verticalOffset
         };
     }
 
     return {
         left: -pieceWidth * (1 - visiblePart) + horizontalOffset,
-        top: Math.max(0, Math.min(imageHeight - pieceHeight, verticalPosition + verticalOffset))
+        top: verticalPosition + verticalOffset
     };
 }
 
@@ -171,6 +180,7 @@ function resetPuzzle() {
         div.style.zIndex = 1000;
         div.classList.remove('is-grabbed', 'is-locked');
         div.classList.toggle('is-flipped', div._spawnFlipped);
+        div._hasRotated = false;
         div._revealedOnce = !div._spawnFlipped;
     });
 }
@@ -288,6 +298,12 @@ document.addEventListener('pointermove', function (event) {
 document.addEventListener('pointerup', stopBackgroundDrag);
 document.addEventListener('pointercancel', stopBackgroundDrag);
 recenterViewButton.addEventListener('click', recenterView);
+zoomInButton.addEventListener('click', function () {
+    setZoom(zoomLevel + 0.25);
+});
+zoomOutButton.addEventListener('click', function () {
+    setZoom(zoomLevel - 0.25);
+});
 
 function PuzzlePiece(x, y) {
     this.x = x;
@@ -322,12 +338,13 @@ function PuzzlePiece(x, y) {
     div.style.setProperty('--final-left', spawnPosition.left + 'px');
     div.style.setProperty('--final-top', spawnPosition.top + 'px');
     div.style.setProperty('--scatter-delay', ((x + y) * 25) + 'ms');
-    var startRotation = Math.floor(Math.random() * 4) * 90;
+    var startRotation = Math.random() * 360;
     div.style.setProperty('--piece-rotation', startRotation + 'deg');
     div.style.setProperty('--hover-rotation', (Math.random() * 4 - 2).toFixed(2) + 'deg');
     div._spawnLeft = spawnPosition.left;
     div._spawnTop = spawnPosition.top;
     div._spawnRotation = startRotation;
+    div._hasRotated = false;
     div._spawnFlipped = Math.random() < 0.5;
     div._revealedOnce = !div._spawnFlipped;
 
@@ -367,9 +384,24 @@ function PuzzlePiece(x, y) {
     }
 
     function rotatePiece() {
-        var rotation = parseInt(div.style.getPropertyValue('--piece-rotation'), 10) || 0;
-        rotation += 90;
+        var rotation = parseFloat(div.style.getPropertyValue('--piece-rotation')) || 0;
+        if (!div._hasRotated) {
+            rotation = Math.round((rotation + 90) / 90) * 90;
+            div._hasRotated = true;
+        } else {
+            rotation += 90;
+        }
         div.style.setProperty('--piece-rotation', rotation + 'deg');
+    }
+
+    function showLockEffect() {
+        var lockBurst = document.createElement('span');
+        lockBurst.className = 'lockBurst';
+        lockBurst.setAttribute('aria-hidden', 'true');
+        lockBurst.addEventListener('animationend', function () {
+            lockBurst.remove();
+        });
+        div.appendChild(lockBurst);
     }
 
     function trySnapPiece() {
@@ -386,6 +418,7 @@ function PuzzlePiece(x, y) {
             div.style.left = targetLeft + 'px';
             div.style.top = targetTop + 'px';
             div.classList.add('is-locked');
+            showLockEffect();
         }
     }
 
@@ -399,8 +432,8 @@ function PuzzlePiece(x, y) {
         hasMoved = false;
         pointerStartX = event.clientX;
         pointerStartY = event.clientY;
-        offsetX = event.clientX - containerBounds.left - div.offsetLeft;
-        offsetY = event.clientY - containerBounds.top - div.offsetTop;
+        offsetX = (event.clientX - containerBounds.left) / zoomLevel - div.offsetLeft;
+        offsetY = (event.clientY - containerBounds.top) / zoomLevel - div.offsetTop;
         div.style.zIndex = 1001;
         div.style.cursor = 'grabbing';
         div.classList.add('is-grabbed');
@@ -420,8 +453,8 @@ function PuzzlePiece(x, y) {
         }
 
         var containerBounds = div._containerBounds;
-        div.style.left = event.clientX - containerBounds.left - offsetX + 'px';
-        div.style.top = event.clientY - containerBounds.top - offsetY + 'px';
+        div.style.left = (event.clientX - containerBounds.left) / zoomLevel - offsetX + 'px';
+        div.style.top = (event.clientY - containerBounds.top) / zoomLevel - offsetY + 'px';
     });
 
     div.addEventListener('pointerup', function (event) {
@@ -458,10 +491,7 @@ function PuzzlePiece(x, y) {
 
     // rotate the piece by 90 degrees when right clicked
     div.oncontextmenu = function () {
-        console.log('right clicked');
-        var rotation = parseInt(div.style.getPropertyValue('--piece-rotation'), 10);
-        rotation += 90;
-        div.style.setProperty('--piece-rotation', rotation + 'deg');
+        rotatePiece();
         return false;
     };
 

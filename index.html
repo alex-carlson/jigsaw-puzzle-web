@@ -33,10 +33,6 @@
             <span class="icon" data-lucide="refresh-cw" aria-hidden="true"></span>
             <span class="buttonLabel">New game</span>
         </button>
-        <button id="recenterView" type="button" aria-label="Recenter view">
-            <span class="icon" data-lucide="crosshair" aria-hidden="true"></span>
-            <span class="buttonLabel">Recenter</span>
-        </button>
     </header>
     <div id="viewport">
         <div id="world">
@@ -49,6 +45,17 @@
     <aside id="imagePreview">
         <img id="imagePreviewSource" alt="Puzzle image preview">
     </aside>
+    <nav class="viewControls" aria-label="View controls">
+        <button id="zoomOut" type="button" aria-label="Zoom out" title="Zoom out">
+            <span class="icon" data-lucide="zoom-out" aria-hidden="true"></span>
+        </button>
+        <button id="recenterView" type="button" aria-label="Recenter view" title="Recenter view">
+            <span class="icon" data-lucide="crosshair" aria-hidden="true"></span>
+        </button>
+        <button id="zoomIn" type="button" aria-label="Zoom in" title="Zoom in">
+            <span class="icon" data-lucide="zoom-in" aria-hidden="true"></span>
+        </button>
+    </nav>
 </body>
 <script src="https://unpkg.com/lucide@latest"></script>
 <script>
