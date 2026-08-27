@@ -7,8 +7,9 @@ var puzzleContainer = document.getElementById('puzzleContainer');
 var puzzleBoard = document.querySelector('.wrapper');
 var pieceCountMenu = document.getElementById('pieceCount');
 var imageUpload = document.getElementById('imageUpload');
-var resetGameButton = document.getElementById('resetGame');
 var newGameButton = document.getElementById('newGame');
+var recenterViewButton = document.getElementById('recenterView');
+var world = document.getElementById('world');
 var puzzlePieceCount;
 
 var imageWidth = 800;
@@ -162,7 +163,7 @@ function createPuzzle(pieceCount, columns) {
 }
 
 function resetPuzzle() {
-    puzzlePieces.forEach(function(piece) {
+    puzzlePieces.forEach(function (piece) {
         var div = document.getElementById('puzzlePiece_' + piece.x + '_' + piece.y);
         div.style.left = div._spawnLeft + 'px';
         div.style.top = div._spawnTop + 'px';
@@ -170,6 +171,7 @@ function resetPuzzle() {
         div.style.zIndex = 1000;
         div.classList.remove('is-grabbed', 'is-locked');
         div.classList.toggle('is-flipped', div._spawnFlipped);
+        div._revealedOnce = !div._spawnFlipped;
     });
 }
 
@@ -185,12 +187,12 @@ function startNewGame() {
     createPuzzle(Number(pieceCountMenu.value), Number(selectedOption.dataset.columns));
 }
 
-pieceCountMenu.addEventListener('change', function() {
+pieceCountMenu.addEventListener('change', function () {
     var selectedOption = pieceCountMenu.options[pieceCountMenu.selectedIndex];
     createPuzzle(Number(pieceCountMenu.value), Number(selectedOption.dataset.columns));
 });
 
-imageUpload.addEventListener('change', function() {
+imageUpload.addEventListener('change', function () {
     var uploadedFile = imageUpload.files[0];
 
     if (!uploadedFile) {
@@ -204,20 +206,88 @@ imageUpload.addEventListener('change', function() {
     createPuzzle(Number(pieceCountMenu.value), Number(selectedOption.dataset.columns));
 });
 
-resetGameButton.addEventListener('click', resetPuzzle);
 newGameButton.addEventListener('click', startNewGame);
 
 var initialOption = pieceCountMenu.options[pieceCountMenu.selectedIndex];
 createPuzzle(Number(pieceCountMenu.value), Number(initialOption.dataset.columns));
 
 var resizeTimer;
-window.addEventListener('resize', function() {
+window.addEventListener('resize', function () {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(function() {
+    resizeTimer = setTimeout(function () {
         var selectedOption = pieceCountMenu.options[pieceCountMenu.selectedIndex];
         createPuzzle(Number(pieceCountMenu.value), Number(selectedOption.dataset.columns));
     }, 150);
 });
+
+var panState = {
+    active: false,
+    startX: 0,
+    startY: 0,
+    scrollLeft: 0,
+    scrollTop: 0
+};
+
+function recenterView() {
+    var centerX = Math.max(0, (document.documentElement.scrollWidth - window.innerWidth) / 2);
+    var centerY = Math.max(0, (document.documentElement.scrollHeight - window.innerHeight) / 2);
+    window.scrollTo({
+        left: centerX,
+        top: centerY,
+        behavior: 'auto'
+    });
+}
+
+window.addEventListener('load', function () {
+    recenterView();
+});
+
+function isBackgroundDragTarget(target) {
+    if (!target || target === document.body || target === document.documentElement || target === world || target === document.getElementById('viewport') || target === puzzleBoard || target === puzzleContainer) {
+        return true;
+    }
+
+    return !target.closest('.taskBar, .puzzlePiece, .imageMenu, .imageMenuPanel, button, select, input, summary, aside');
+}
+
+function stopBackgroundDrag() {
+    panState.active = false;
+    document.body.style.cursor = '';
+    document.body.classList.remove('is-dragging-background');
+}
+
+document.addEventListener('pointerdown', function (event) {
+    if (!isBackgroundDragTarget(event.target)) {
+        return;
+    }
+
+    panState.active = true;
+    panState.startX = event.clientX;
+    panState.startY = event.clientY;
+    panState.scrollLeft = window.scrollX;
+    panState.scrollTop = window.scrollY;
+    document.body.style.cursor = 'grabbing';
+    document.body.classList.add('is-dragging-background');
+    event.preventDefault();
+});
+
+document.addEventListener('pointermove', function (event) {
+    if (!panState.active) {
+        return;
+    }
+
+    var dx = event.clientX - panState.startX;
+    var dy = event.clientY - panState.startY;
+    window.scrollTo({
+        left: panState.scrollLeft - dx,
+        top: panState.scrollTop - dy,
+        behavior: 'auto'
+    });
+});
+
+document.addEventListener('pointerup', stopBackgroundDrag);
+document.addEventListener('pointercancel', stopBackgroundDrag);
+recenterViewButton.addEventListener('click', recenterView);
 
 function PuzzlePiece(x, y) {
     this.x = x;
@@ -229,6 +299,11 @@ function PuzzlePiece(x, y) {
     var targetTop = y * puzzlePieceHeight - tabDepth;
     var snapDistance = Math.max(puzzlePieceWidth, puzzlePieceHeight) * 0.45;
     var spawnPosition = getEdgeSpawnPosition(pieceWidth, pieceHeight);
+    var boardRect = puzzleBoard.getBoundingClientRect();
+    var centerLeft = window.innerWidth / 2 - boardRect.left;
+    var centerTop = window.innerHeight / 2 - boardRect.top;
+    var scatterStartLeft = centerLeft - pieceWidth / 2;
+    var scatterStartTop = centerTop - pieceHeight / 2;
 
     // create a new div element and put it in #puzzleContainer
     var div = document.createElement('div');
@@ -236,17 +311,35 @@ function PuzzlePiece(x, y) {
     div.id = 'puzzlePiece_' + x + '_' + y;
     div.style.width = pieceWidth + 'px';
     div.style.height = pieceHeight + 'px';
-    div.style.left = spawnPosition.left + 'px';
-    div.style.top = spawnPosition.top + 'px';
+    div.style.left = scatterStartLeft + 'px';
+    div.style.top = scatterStartTop + 'px';
     div.style.boxSizing = 'border-box';
     div.style.clipPath = 'path("' + createPiecePath(x, y) + '")';
     div.style.cursor = 'grab';
     div.style.zIndex = 1000;
-    div.style.setProperty('--piece-rotation', '0deg');
+    div.style.setProperty('--scatter-left', scatterStartLeft + 'px');
+    div.style.setProperty('--scatter-top', scatterStartTop + 'px');
+    div.style.setProperty('--final-left', spawnPosition.left + 'px');
+    div.style.setProperty('--final-top', spawnPosition.top + 'px');
+    div.style.setProperty('--scatter-delay', ((x + y) * 25) + 'ms');
+    var startRotation = Math.floor(Math.random() * 4) * 90;
+    div.style.setProperty('--piece-rotation', startRotation + 'deg');
+    div.style.setProperty('--hover-rotation', (Math.random() * 4 - 2).toFixed(2) + 'deg');
     div._spawnLeft = spawnPosition.left;
     div._spawnTop = spawnPosition.top;
-    div._spawnRotation = parseInt(div.style.getPropertyValue('--piece-rotation'), 10);
+    div._spawnRotation = startRotation;
     div._spawnFlipped = Math.random() < 0.5;
+    div._revealedOnce = !div._spawnFlipped;
+
+    div.addEventListener('animationend', function (event) {
+        if (event.animationName !== 'pieceScatter') {
+            return;
+        }
+
+        div.style.left = spawnPosition.left + 'px';
+        div.style.top = spawnPosition.top + 'px';
+        div.classList.add('scatter-complete');
+    });
 
     var frontFace = document.createElement('div');
     var backFace = document.createElement('div');
@@ -266,8 +359,17 @@ function PuzzlePiece(x, y) {
     var pointerStartX;
     var pointerStartY;
 
-    function flipPiece() {
-        div.classList.toggle('is-flipped');
+    function flipPieceToFrontOnce() {
+        if (!div._revealedOnce) {
+            div.classList.remove('is-flipped');
+            div._revealedOnce = true;
+        }
+    }
+
+    function rotatePiece() {
+        var rotation = parseInt(div.style.getPropertyValue('--piece-rotation'), 10) || 0;
+        rotation += 90;
+        div.style.setProperty('--piece-rotation', rotation + 'deg');
     }
 
     function trySnapPiece() {
@@ -287,7 +389,7 @@ function PuzzlePiece(x, y) {
         }
     }
 
-    div.addEventListener('pointerdown', function(event) {
+    div.addEventListener('pointerdown', function (event) {
         if (event.button !== 0 || div.classList.contains('is-locked')) {
             return;
         }
@@ -308,7 +410,7 @@ function PuzzlePiece(x, y) {
         div._containerBounds = containerBounds;
     });
 
-    div.addEventListener('pointermove', function(event) {
+    div.addEventListener('pointermove', function (event) {
         if (!isDragging) {
             return;
         }
@@ -322,7 +424,7 @@ function PuzzlePiece(x, y) {
         div.style.top = event.clientY - containerBounds.top - offsetY + 'px';
     });
 
-    div.addEventListener('pointerup', function(event) {
+    div.addEventListener('pointerup', function (event) {
         if (!isDragging) {
             return;
         }
@@ -332,13 +434,17 @@ function PuzzlePiece(x, y) {
         div.style.cursor = 'grab';
         div.classList.remove('is-grabbed');
         if (!hasMoved) {
-            flipPiece();
+            if (!div._revealedOnce) {
+                flipPieceToFrontOnce();
+            } else {
+                rotatePiece();
+            }
         }
         trySnapPiece();
         div.releasePointerCapture(event.pointerId);
     });
 
-    div.addEventListener('pointercancel', function(event) {
+    div.addEventListener('pointercancel', function (event) {
         if (!isDragging) {
             return;
         }
@@ -351,7 +457,7 @@ function PuzzlePiece(x, y) {
     });
 
     // rotate the piece by 90 degrees when right clicked
-    div.oncontextmenu = function() {
+    div.oncontextmenu = function () {
         console.log('right clicked');
         var rotation = parseInt(div.style.getPropertyValue('--piece-rotation'), 10);
         rotation += 90;

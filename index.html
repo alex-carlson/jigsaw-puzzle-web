@@ -5,13 +5,13 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Puzzle</title>
+    <title>🧩 Puzzle</title>
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
     <header class="taskBar">
-        <h1>🧩</h1>
+        <h1 aria-label="Jigsaw puzzle">🧩</h1>
         <label for="pieceCount">Pieces</label>
         <select id="pieceCount">
             <option value="24" data-columns="6">24</option>
@@ -20,23 +20,40 @@
             <option value="192" data-columns="16">192</option>
         </select>
         <details class="imageMenu">
-            <summary>Image</summary>
+            <summary>
+                <span class="icon" data-lucide="upload" aria-hidden="true"></span>
+                <span>Image</span>
+            </summary>
             <div class="imageMenuPanel">
                 <label for="imageUpload">Upload image</label>
                 <input id="imageUpload" type="file" accept="image/*">
             </div>
         </details>
-        <button id="resetGame" type="button">Reset</button>
-        <button id="newGame" type="button">New game</button>
+        <button id="newGame" type="button" aria-label="New game">
+            <span class="icon" data-lucide="refresh-cw" aria-hidden="true"></span>
+            <span class="buttonLabel">New game</span>
+        </button>
+        <button id="recenterView" type="button" aria-label="Recenter view">
+            <span class="icon" data-lucide="crosshair" aria-hidden="true"></span>
+            <span class="buttonLabel">Recenter</span>
+        </button>
     </header>
-    <div class="wrapper">
-        <img id="puzzleSrc" alt="">
-        <div id="puzzleContainer"></div>
+    <div id="viewport">
+        <div id="world">
+            <div class="wrapper">
+                <img id="puzzleSrc" alt="">
+                <div id="puzzleContainer"></div>
+            </div>
+        </div>
     </div>
     <aside id="imagePreview">
         <img id="imagePreviewSource" alt="Puzzle image preview">
     </aside>
 </body>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+    lucide.createIcons();
+</script>
 <script src="main.js"></script>
 
 </html>
