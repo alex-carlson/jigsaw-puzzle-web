@@ -45,7 +45,23 @@
             </div>
         </div>
     </div>
-    <aside id="imagePreview"><img id="imagePreviewSource" alt="Puzzle image preview"></aside>
+    <aside id="imagePreview">
+        <img id="imagePreviewSource" alt="Puzzle image preview" draggable="false">
+        <div class="previewControls" aria-label="Preview controls">
+            <button id="previewZoomOut" type="button" aria-label="Zoom out preview"
+                title="Zoom out preview">&minus;</button>
+            <button id="previewZoomIn" type="button" aria-label="Zoom in preview"
+                title="Zoom in preview">&plus;</button>
+        </div>
+    </aside>
+    <div id="completionMessage" class="completionMessage" role="dialog" aria-modal="true"
+        aria-labelledby="completionTitle" hidden>
+        <div class="completionPanel">
+            <h2 id="completionTitle">Congratulations!</h2>
+            <p>You assembled the whole puzzle.</p>
+            <button id="completionNewGame" type="button">Start a new game</button>
+        </div>
+    </div>
     <nav class="viewControls" aria-label="View controls">
         <button id="zoomOut" type="button" aria-label="Zoom out" title="Zoom out">&minus;</button>
         <button id="recenterView" type="button" aria-label="Recenter view" title="Recenter view">&#8982;</button>
