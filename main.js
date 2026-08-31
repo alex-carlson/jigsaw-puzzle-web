@@ -804,6 +804,31 @@ function PuzzlePiece(x, y) {
         updateGroupShadow(group);
     }
 
+    function closeGroupGaps(group) {
+        if (!group || group.length < 2) {
+            return;
+        }
+
+        var anchor = group[0];
+        var anchorLeft = anchor.offsetLeft;
+        var anchorTop = anchor.offsetTop;
+        var anchorX = anchor._pieceData.x;
+        var anchorY = anchor._pieceData.y;
+        var angle = getPieceRotation(anchor) * Math.PI / 180;
+        var cosine = Math.cos(angle);
+        var sine = Math.sin(angle);
+
+        group.forEach(function (piece) {
+            var horizontalOffset = (piece._pieceData.x - anchorX) * puzzlePieceWidth;
+            var verticalOffset = (piece._pieceData.y - anchorY) * puzzlePieceHeight;
+            var rotatedLeft = horizontalOffset * cosine - verticalOffset * sine;
+            var rotatedTop = horizontalOffset * sine + verticalOffset * cosine;
+            piece.style.left = anchorLeft + rotatedLeft + 'px';
+            piece.style.top = anchorTop + rotatedTop + 'px';
+        });
+        updateGroupShadow(group);
+    }
+
     function updateGroupShadow(group) {
         if (!group || group.length < 2 || !group[0]._groupShadow) {
             return;
@@ -1027,6 +1052,7 @@ function PuzzlePiece(x, y) {
                 if (isCloseEnough) {
                     moveGroup(group, horizontalDistance, verticalDistance);
                     mergeGroups(group, other._group);
+                    closeGroupGaps(sourcePiece._group);
                     return true;
                 }
             }
