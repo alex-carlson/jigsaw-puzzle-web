@@ -211,6 +211,19 @@ function restorePuzzleState(state) {
         showCompletionMessage();
     }
 
+    var restoredGroupIds = [];
+    state.pieces.forEach(function (pieceState) {
+        if (!pieceState.groupId || pieceState.groupId.length < 2) {
+            return;
+        }
+        var groupId = pieceState.groupId.join('|');
+        var element = piecesById['puzzlePiece_' + pieceState.x + '_' + pieceState.y];
+        if (element && restoredGroupIds.indexOf(groupId) === -1) {
+            restoredGroupIds.push(groupId);
+            element._createGroupShadow(element._group);
+        }
+    });
+
     setZoom(state.zoomLevel || 1);
     requestAnimationFrame(function () {
         window.scrollTo({ left: state.scrollLeft || 0, top: state.scrollTop || 0, behavior: 'auto' });
@@ -652,16 +665,29 @@ function PuzzlePiece(x, y) {
     var originPositions;
     var latestPointerX;
     var latestPointerY;
+    var previousPointerX;
+    var previousPointerY;
+    var previousPointerTime;
+    var pointerVelocityX = 0;
+    var pointerVelocityY = 0;
+    var smoothedPointerX;
+    var smoothedPointerY;
     var autoScrollFrame;
 
     function restoreGroupToOrigin() {
+        var groupShadow = div._groupShadow;
         originPositions.forEach(function (position) {
             originSurface.appendChild(position.piece);
+            position.piece.style.removeProperty('--piece-scale');
         });
+        if (groupShadow) {
+            originSurface.insertBefore(groupShadow, originSurface.firstChild);
+        }
         originPositions.forEach(function (position) {
             position.piece.style.left = position.left + 'px';
             position.piece.style.top = position.top + 'px';
         });
+        updateGroupShadow(div._group);
     }
 
     function updateDraggedGroup(clientX, clientY) {
@@ -675,6 +701,23 @@ function PuzzlePiece(x, y) {
             position.piece.style.left = position.left + horizontalDistance + 'px';
             position.piece.style.top = position.top + verticalDistance + 'px';
         });
+        updateGroupShadow(div._group);
+    }
+
+    function getPredictedPointerPosition() {
+        var predictionTime = 18;
+        var maximumPrediction = 12;
+        var predictedX = pointerVelocityX * predictionTime;
+        var predictedY = pointerVelocityY * predictionTime;
+        var predictionDistance = Math.sqrt(predictedX * predictedX + predictedY * predictedY);
+
+        if (predictionDistance > maximumPrediction) {
+            var predictionScale = maximumPrediction / predictionDistance;
+            predictedX *= predictionScale;
+            predictedY *= predictionScale;
+        }
+
+        return { x: latestPointerX + predictedX, y: latestPointerY + predictedY };
     }
 
     function getEdgeScrollSpeed(pointerPosition, windowSize) {
@@ -758,7 +801,65 @@ function PuzzlePiece(x, y) {
             piece.style.left = piece.offsetLeft + horizontalDistance + 'px';
             piece.style.top = piece.offsetTop + verticalDistance + 'px';
         });
+        updateGroupShadow(group);
     }
+
+    function updateGroupShadow(group) {
+        if (!group || group.length < 2 || !group[0]._groupShadow) {
+            return;
+        }
+
+        var shadow = group[0]._groupShadow;
+        var left = Math.min.apply(null, group.map(function (piece) { return piece.offsetLeft; }));
+        var top = Math.min.apply(null, group.map(function (piece) { return piece.offsetTop; }));
+        var right = Math.max.apply(null, group.map(function (piece) { return piece.offsetLeft + piece.offsetWidth; }));
+        var bottom = Math.max.apply(null, group.map(function (piece) { return piece.offsetTop + piece.offsetHeight; }));
+        shadow.style.left = left + 'px';
+        shadow.style.top = top + 'px';
+        shadow.style.width = right - left + 'px';
+        shadow.style.height = bottom - top + 'px';
+        group.forEach(function (piece, index) {
+            var shadowPiece = shadow.children[index];
+            shadowPiece.style.left = piece.offsetLeft - left + 'px';
+            shadowPiece.style.top = piece.offsetTop - top + 'px';
+            shadowPiece.style.width = piece.offsetWidth + 'px';
+            shadowPiece.style.height = piece.offsetHeight + 'px';
+            shadowPiece.style.transform = piece.style.getPropertyValue('--flip-transform') + ' rotate(' + getPieceRotation(piece) + 'deg)';
+        });
+    }
+
+    function removeGroupShadow(group) {
+        var shadows = [];
+        group.forEach(function (piece) {
+            if (piece._groupShadow && shadows.indexOf(piece._groupShadow) === -1) {
+                shadows.push(piece._groupShadow);
+            }
+            piece._groupShadow = null;
+        });
+        shadows.forEach(function (shadow) {
+            shadow.remove();
+        });
+    }
+
+    function createGroupShadow(group) {
+        removeGroupShadow(group);
+        var shadow = document.createElement('div');
+        shadow.className = 'groupShadow';
+        shadow.setAttribute('aria-hidden', 'true');
+        group.forEach(function (piece) {
+            var shadowPiece = document.createElement('div');
+            shadowPiece.className = 'groupShadowPiece';
+            shadowPiece.style.clipPath = piece.firstElementChild.style.clipPath;
+            shadow.appendChild(shadowPiece);
+        });
+        group[0].parentElement.insertBefore(shadow, group[0]);
+        group.forEach(function (piece) {
+            piece._groupShadow = shadow;
+        });
+        updateGroupShadow(group);
+    }
+
+    div._createGroupShadow = createGroupShadow;
 
     function moveGroupToSurface(group, draggedPiece, targetSurface, clientX, clientY, grabOffsetLeft, grabOffsetTop) {
         var targetBounds = targetSurface.getBoundingClientRect();
@@ -772,10 +873,14 @@ function PuzzlePiece(x, y) {
             targetSurface.appendChild(piece);
             piece.style.removeProperty('--piece-scale');
         });
+        if (group[0]._groupShadow) {
+            targetSurface.insertBefore(group[0]._groupShadow, targetSurface.firstChild);
+        }
         group.forEach(function (piece, index) {
             piece.style.left = targetLeft + leftOffsets[index] + 'px';
             piece.style.top = targetTop + topOffsets[index] + 'px';
         });
+        updateGroupShadow(group);
     }
 
     function moveGroupToDragLayer(group) {
@@ -798,10 +903,14 @@ function PuzzlePiece(x, y) {
             dragLayer.appendChild(piece);
             piece.style.setProperty('--piece-scale', sourceScale);
         });
+        if (group[0]._groupShadow) {
+            dragLayer.appendChild(group[0]._groupShadow);
+        }
         screenPositions.forEach(function (position) {
             position.piece.style.left = position.left + 'px';
             position.piece.style.top = position.top + 'px';
         });
+        updateGroupShadow(group);
     }
 
     function rotateGroup(pivotLeft, pivotTop, onComplete) {
@@ -852,6 +961,7 @@ function PuzzlePiece(x, y) {
                 item.piece._hasRotated = true;
                 item.piece._isRotating = false;
             });
+            updateGroupShadow(group);
             if (onComplete) {
                 onComplete();
             }
@@ -866,54 +976,59 @@ function PuzzlePiece(x, y) {
             piece._group = mergedGroup;
             piece.classList.add('is-grouped');
         });
+        createGroupShadow(mergedGroup);
     }
 
     function tryConnectToNeighbor() {
         var group = div._group;
-        var rotation = getPieceRotation(div);
 
-        if (div.classList.contains('is-flipped')) {
-            return false;
-        }
+        for (var groupIndex = 0; groupIndex < group.length; groupIndex++) {
+            var sourcePiece = group[groupIndex];
+            var rotation = getPieceRotation(sourcePiece);
 
-        for (var pieceIndex = 0; pieceIndex < puzzlePieces.length; pieceIndex++) {
-            var other = puzzlePieces[pieceIndex].element;
-            if (other === div || group.indexOf(other) !== -1 || other.parentElement !== div.parentElement || other.classList.contains('is-flipped') || getPieceRotation(other) !== rotation) {
+            if (sourcePiece.classList.contains('is-flipped')) {
                 continue;
             }
 
-            var columnDistance = div._pieceData.x - other._pieceData.x;
-            var rowDistance = div._pieceData.y - other._pieceData.y;
-            if (Math.abs(columnDistance) + Math.abs(rowDistance) !== 1) {
-                continue;
-            }
+            for (var pieceIndex = 0; pieceIndex < puzzlePieces.length; pieceIndex++) {
+                var other = puzzlePieces[pieceIndex].element;
+                if (other === sourcePiece || group.indexOf(other) !== -1 || other.parentElement !== sourcePiece.parentElement || other.classList.contains('is-flipped') || getPieceRotation(other) !== rotation) {
+                    continue;
+                }
 
-            var matchingNodes = columnDistance === 1
-                ? div._pieceData.edges.left === other._pieceData.edges.right
-                : columnDistance === -1
-                    ? div._pieceData.edges.right === other._pieceData.edges.left
-                    : rowDistance === 1
-                        ? div._pieceData.edges.top === other._pieceData.edges.bottom
-                        : div._pieceData.edges.bottom === other._pieceData.edges.top;
-            if (!matchingNodes) {
-                continue;
-            }
+                var columnDistance = sourcePiece._pieceData.x - other._pieceData.x;
+                var rowDistance = sourcePiece._pieceData.y - other._pieceData.y;
+                if (Math.abs(columnDistance) + Math.abs(rowDistance) !== 1) {
+                    continue;
+                }
 
-            var angle = rotation * Math.PI / 180;
-            var logicalOffsetLeft = columnDistance * puzzlePieceWidth;
-            var logicalOffsetTop = rowDistance * puzzlePieceHeight;
-            var rotatedOffsetLeft = logicalOffsetLeft * Math.cos(angle) - logicalOffsetTop * Math.sin(angle);
-            var rotatedOffsetTop = logicalOffsetLeft * Math.sin(angle) + logicalOffsetTop * Math.cos(angle);
-            var expectedLeft = other.offsetLeft + rotatedOffsetLeft;
-            var expectedTop = other.offsetTop + rotatedOffsetTop;
-            var horizontalDistance = expectedLeft - div.offsetLeft;
-            var verticalDistance = expectedTop - div.offsetTop;
-            var isCloseEnough = Math.sqrt(horizontalDistance * horizontalDistance + verticalDistance * verticalDistance) <= snapDistance;
+                var matchingNodes = columnDistance === 1
+                    ? sourcePiece._pieceData.edges.left === other._pieceData.edges.right
+                    : columnDistance === -1
+                        ? sourcePiece._pieceData.edges.right === other._pieceData.edges.left
+                        : rowDistance === 1
+                            ? sourcePiece._pieceData.edges.top === other._pieceData.edges.bottom
+                            : sourcePiece._pieceData.edges.bottom === other._pieceData.edges.top;
+                if (!matchingNodes) {
+                    continue;
+                }
 
-            if (isCloseEnough) {
-                moveGroup(group, horizontalDistance, verticalDistance);
-                mergeGroups(group, other._group);
-                return true;
+                var angle = rotation * Math.PI / 180;
+                var logicalOffsetLeft = columnDistance * puzzlePieceWidth;
+                var logicalOffsetTop = rowDistance * puzzlePieceHeight;
+                var rotatedOffsetLeft = logicalOffsetLeft * Math.cos(angle) - logicalOffsetTop * Math.sin(angle);
+                var rotatedOffsetTop = logicalOffsetLeft * Math.sin(angle) + logicalOffsetTop * Math.cos(angle);
+                var expectedLeft = other.offsetLeft + rotatedOffsetLeft;
+                var expectedTop = other.offsetTop + rotatedOffsetTop;
+                var horizontalDistance = expectedLeft - sourcePiece.offsetLeft;
+                var verticalDistance = expectedTop - sourcePiece.offsetTop;
+                var isCloseEnough = Math.sqrt(horizontalDistance * horizontalDistance + verticalDistance * verticalDistance) <= snapDistance;
+
+                if (isCloseEnough) {
+                    moveGroup(group, horizontalDistance, verticalDistance);
+                    mergeGroups(group, other._group);
+                    return true;
+                }
             }
         }
 
@@ -921,7 +1036,10 @@ function PuzzlePiece(x, y) {
     }
 
     function trySnapPiece() {
-        var didConnect = tryConnectToNeighbor();
+        var didConnect = false;
+        while (tryConnectToNeighbor()) {
+            didConnect = true;
+        }
         if (didConnect && div._group.length === puzzlePieces.length) {
             savePuzzleState();
             showCompletionMessage();
@@ -950,6 +1068,13 @@ function PuzzlePiece(x, y) {
         pointerStartY = event.clientY;
         latestPointerX = event.clientX;
         latestPointerY = event.clientY;
+        previousPointerX = event.clientX;
+        previousPointerY = event.clientY;
+        previousPointerTime = event.timeStamp || performance.now();
+        pointerVelocityX = 0;
+        pointerVelocityY = 0;
+        smoothedPointerX = event.clientX;
+        smoothedPointerY = event.clientY;
         offsetX = (event.clientX - containerBounds.left) / dragScale - div.offsetLeft;
         offsetY = (event.clientY - containerBounds.top) / dragScale - div.offsetTop;
         div.style.zIndex = 1001;
@@ -973,11 +1098,23 @@ function PuzzlePiece(x, y) {
 
         latestPointerX = event.clientX;
         latestPointerY = event.clientY;
+        var pointerTime = event.timeStamp || performance.now();
+        var elapsedTime = Math.max(1, pointerTime - previousPointerTime);
+        var instantaneousVelocityX = (event.clientX - previousPointerX) / elapsedTime;
+        var instantaneousVelocityY = (event.clientY - previousPointerY) / elapsedTime;
+        pointerVelocityX = pointerVelocityX * 0.35 + instantaneousVelocityX * 0.65;
+        pointerVelocityY = pointerVelocityY * 0.35 + instantaneousVelocityY * 0.65;
+        previousPointerX = event.clientX;
+        previousPointerY = event.clientY;
+        previousPointerTime = pointerTime;
         if (Math.abs(event.clientX - pointerStartX) > 5 || Math.abs(event.clientY - pointerStartY) > 5) {
             hasMoved = true;
         }
 
-        updateDraggedGroup(event.clientX, event.clientY);
+        var predictedPointer = getPredictedPointerPosition();
+        smoothedPointerX += (predictedPointer.x - smoothedPointerX) * 0.45;
+        smoothedPointerY += (predictedPointer.y - smoothedPointerY) * 0.45;
+        updateDraggedGroup(smoothedPointerX, smoothedPointerY);
         if (hasMoved && !autoScrollFrame) {
             autoScrollFrame = requestAnimationFrame(autoScrollWhileDragging);
         }

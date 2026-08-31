@@ -522,7 +522,21 @@ body::-webkit-scrollbar-thumb:hover {
 }
 
 .puzzlePiece.is-grouped {
+    filter: none;
     transition: none;
+}
+
+.groupShadow {
+    position: absolute;
+    z-index: 0;
+    pointer-events: none;
+    filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.72));
+}
+
+.groupShadowPiece {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.32);
+    transform-origin: center center;
 }
 
 #shelfStorage .puzzlePiece {
