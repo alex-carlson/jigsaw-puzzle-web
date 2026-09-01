@@ -768,15 +768,15 @@ function PuzzlePiece(x, y) {
         }
     }
 
-    function rotatePiece(snapToNearest) {
+    function rotatePiece(snapToNearest, clockwise) {
         var rotation = parseFloat(div.style.getPropertyValue('--piece-rotation')) || 0;
         if (!div._hasRotated) {
             rotation = snapToNearest
                 ? Math.round(rotation / 90) * 90
-                : Math.round((rotation + 90) / 90) * 90;
+                : Math.round((rotation + (clockwise ? -90 : 90)) / 90) * 90;
             div._hasRotated = true;
         } else {
-            rotation = Math.round(rotation / 90) * 90 + 90;
+            rotation = Math.round(rotation / 90) * 90 + (clockwise ? -90 : 90);
         }
         div.style.setProperty('--piece-rotation', rotation + 'deg');
     }
@@ -1065,6 +1065,7 @@ function PuzzlePiece(x, y) {
         var didConnect = false;
         while (tryConnectToNeighbor()) {
             didConnect = true;
+            showLockEffect();
         }
         if (didConnect && div._group.length === puzzlePieces.length) {
             savePuzzleState();
@@ -1213,9 +1214,20 @@ function PuzzlePiece(x, y) {
     });
 
     // rotate the piece by 90 degrees when right clicked
-    div.oncontextmenu = function () {
-        rotatePiece();
-        savePuzzleState();
+    div.oncontextmenu = function (event) {
+        if (div._group.length > 1) {
+            var rotationBounds = puzzleContainer.getBoundingClientRect();
+            var rotationScale = zoomLevel;
+            var pivotLeft = (event.clientX - rotationBounds.left) / rotationScale;
+            var pivotTop = (event.clientY - rotationBounds.top) / rotationScale;
+            rotateGroup(pivotLeft, pivotTop, function () {
+                trySnapPiece();
+                savePuzzleState();
+            });
+        } else {
+            rotatePiece(true, true);
+            savePuzzleState();
+        }
         return false;
     };
 
