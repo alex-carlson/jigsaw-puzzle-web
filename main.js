@@ -1,5 +1,9 @@
+import { createEdgeMap, createPiecePath, getEdgeSpawnPosition } from './puzzle-geometry.js';
+import { loadPuzzleState, removePuzzleState } from './puzzle-storage.js';
+
 var image = document.getElementById('puzzleSrc');
 var imagePreview = document.getElementById('imagePreviewSource');
+var imagePreviewContainer = document.getElementById('imagePreview');
 var puzzleStateKey = 'jigsaw-puzzle-state-v5';
 var puzzleImages = [
     'amy-perez-EN24LvCaHw0-unsplash.jpg',
@@ -43,7 +47,7 @@ var puzzleImages = [
     'uwei-c-V9XRfdOK6P4-unsplash.jpg',
     'vincentiu-solomon-ln5drpv_ImI-unsplash.jpg'
 ];
-var savedPuzzleState = loadPuzzleState();
+var savedPuzzleState = loadPuzzleState(puzzleStateKey);
 var url = savedPuzzleState && savedPuzzleState.imageUrl
     ? savedPuzzleState.imageUrl
     : getRandomImageUrl();
@@ -111,16 +115,8 @@ function showCompletionMessage() {
     completionNewGame.focus();
 }
 
-function loadPuzzleState() {
-    try {
-        return JSON.parse(localStorage.getItem(puzzleStateKey));
-    } catch (error) {
-        return null;
-    }
-}
-
 function clearPuzzleState() {
-    localStorage.removeItem(puzzleStateKey);
+    removePuzzleState(puzzleStateKey);
     savedPuzzleState = null;
 }
 
@@ -253,124 +249,21 @@ function createPuzzleWhenImageIsReady(pieceCount, columns) {
 }
 
 function updatePreviewSizeForImage() {
-    previewBaseWidth = previewBaseWidth || imagePreview.offsetWidth || 150;
+    previewBaseWidth = previewBaseWidth || imagePreviewContainer.offsetWidth || 150;
     previewBaseHeight = previewBaseWidth / imageAspectRatio;
     previewZoomLevel = 1;
-    imagePreview.style.setProperty('--preview-zoom', previewZoomLevel);
-    imagePreview.style.setProperty('--preview-base-height', previewBaseHeight + 'px');
-    imagePreview.style.setProperty('--preview-width', previewBaseWidth + 'px');
-    imagePreview.style.setProperty('--preview-height', previewBaseHeight + 'px');
-    imagePreview.style.width = previewBaseWidth + 'px';
-    imagePreview.style.height = previewBaseHeight + 'px';
+    imagePreviewContainer.style.setProperty('--preview-zoom', previewZoomLevel);
+    imagePreviewContainer.style.setProperty('--preview-base-height', previewBaseHeight + 'px');
+    imagePreviewContainer.style.setProperty('--preview-width', previewBaseWidth + 'px');
+    imagePreviewContainer.style.setProperty('--preview-height', previewBaseHeight + 'px');
+    imagePreviewContainer.style.width = previewBaseWidth + 'px';
+    imagePreviewContainer.style.height = previewBaseHeight + 'px';
 }
 
-function createEdgeMap() {
-    horizontalEdges = [];
-    verticalEdges = [];
-
-    for (var edgeY = 0; edgeY <= height; edgeY++) {
-        horizontalEdges[edgeY] = [];
-        for (var edgeX = 0; edgeX < width; edgeX++) {
-            horizontalEdges[edgeY][edgeX] = edgeY === 0 || edgeY === height
-                ? 0
-                : Math.random() < 0.5 ? -1 : 1;
-        }
-    }
-
-    for (var row = 0; row < height; row++) {
-        verticalEdges[row] = [];
-        for (var column = 0; column <= width; column++) {
-            verticalEdges[row][column] = column === 0 || column === width
-                ? 0
-                : Math.random() < 0.5 ? -1 : 1;
-        }
-    }
-}
-
-function horizontalEdge(start, end, base, bulge) {
-    if (bulge === 0) {
-        return 'L ' + end + ' ' + base;
-    }
-
-    var distance = end - start;
-    var first = start + distance * 0.36;
-    var last = start + distance * 0.64;
-    var middle = (start + end) / 2;
-    var tabY = base + bulge * tabDepth;
-
-    return 'L ' + first + ' ' + base +
-        ' C ' + (first + distance * 0.1) + ' ' + base + ' ' + (middle - distance * 0.1) + ' ' + tabY + ' ' + middle + ' ' + tabY +
-        ' C ' + (middle + distance * 0.1) + ' ' + tabY + ' ' + (last - distance * 0.1) + ' ' + base + ' ' + last + ' ' + base +
-        ' L ' + end + ' ' + base;
-}
-
-function verticalEdge(start, end, base, bulge) {
-    if (bulge === 0) {
-        return 'L ' + base + ' ' + end;
-    }
-
-    var distance = end - start;
-    var first = start + distance * 0.36;
-    var last = start + distance * 0.64;
-    var middle = (start + end) / 2;
-    var tabX = base + bulge * tabDepth;
-
-    return 'L ' + base + ' ' + first +
-        ' C ' + base + ' ' + (first + distance * 0.1) + ' ' + tabX + ' ' + (middle - distance * 0.1) + ' ' + tabX + ' ' + middle +
-        ' C ' + tabX + ' ' + (middle + distance * 0.1) + ' ' + base + ' ' + (last - distance * 0.1) + ' ' + base + ' ' + last +
-        ' L ' + base + ' ' + end;
-}
-
-function createPiecePath(x, y) {
-    var left = tabDepth;
-    var top = tabDepth;
-    var right = left + puzzlePieceWidth;
-    var bottom = top + puzzlePieceHeight;
-    var topEdge = y === 0 ? 0 : horizontalEdges[y][x];
-    var rightEdge = x === width - 1 ? 0 : -verticalEdges[y][x + 1];
-    var bottomEdge = y === height - 1 ? 0 : -horizontalEdges[y + 1][x];
-    var leftEdge = x === 0 ? 0 : verticalEdges[y][x];
-
-    return 'M ' + left + ' ' + top +
-        horizontalEdge(left, right, top, -topEdge) +
-        verticalEdge(top, bottom, right, rightEdge) +
-        horizontalEdge(right, left, bottom, bottomEdge) +
-        verticalEdge(bottom, top, left, -leftEdge) + ' Z';
-}
-
-function getEdgeSpawnPosition(pieceWidth, pieceHeight) {
-    var side = Math.floor(Math.random() * 4);
-    var horizontalPosition = Math.random() * (imageWidth + pieceWidth * 2) - pieceWidth;
-    var verticalPosition = Math.random() * (imageHeight + pieceHeight * 2) - pieceHeight;
-    var horizontalOffset = (Math.random() - 0.5) * pieceWidth * 1.5;
-    var verticalOffset = (Math.random() - 0.5) * pieceHeight * 1.5;
-    var visiblePart = -0.35;
-
-    if (side === 0) {
-        return {
-            left: horizontalPosition + horizontalOffset,
-            top: -pieceHeight * (1 - visiblePart) + verticalOffset
-        };
-    }
-
-    if (side === 1) {
-        return {
-            left: imageWidth - pieceWidth * visiblePart + horizontalOffset,
-            top: verticalPosition + verticalOffset
-        };
-    }
-
-    if (side === 2) {
-        return {
-            left: horizontalPosition + horizontalOffset,
-            top: imageHeight - pieceHeight * visiblePart + verticalOffset
-        };
-    }
-
-    return {
-        left: -pieceWidth * (1 - visiblePart) + horizontalOffset,
-        top: verticalPosition + verticalOffset
-    };
+function initializeEdgeMap() {
+    var edgeMap = createEdgeMap(width, height);
+    horizontalEdges = edgeMap.horizontal;
+    verticalEdges = edgeMap.vertical;
 }
 
 function createPuzzle(pieceCount, columns) {
@@ -391,7 +284,7 @@ function createPuzzle(pieceCount, columns) {
         horizontalEdges = state.edges.horizontal;
         verticalEdges = state.edges.vertical;
     } else {
-        createEdgeMap();
+        initializeEdgeMap();
     }
 
     for (var i = 0; i < width; i++) {
@@ -554,16 +447,16 @@ zoomOutButton.addEventListener('click', function () {
 });
 function setPreviewZoom(nextZoom) {
     if (previewBaseWidth === undefined) {
-        previewBaseWidth = imagePreview.offsetWidth || parseFloat(getComputedStyle(imagePreview).width);
-        previewBaseHeight = imagePreview.offsetHeight || parseFloat(getComputedStyle(imagePreview).height);
+        previewBaseWidth = imagePreviewContainer.offsetWidth || parseFloat(getComputedStyle(imagePreviewContainer).width);
+        previewBaseHeight = imagePreviewContainer.offsetHeight || parseFloat(getComputedStyle(imagePreviewContainer).height);
     }
 
     previewZoomLevel = Math.max(0.75, Math.min(3, nextZoom));
-    imagePreview.style.setProperty('--preview-zoom', previewZoomLevel);
-    imagePreview.style.setProperty('--preview-width', previewBaseWidth * previewZoomLevel + 'px');
-    imagePreview.style.setProperty('--preview-height', previewBaseHeight * previewZoomLevel + 'px');
-    imagePreview.style.width = previewBaseWidth * previewZoomLevel + 'px';
-    imagePreview.style.height = previewBaseHeight * previewZoomLevel + 'px';
+    imagePreviewContainer.style.setProperty('--preview-zoom', previewZoomLevel);
+    imagePreviewContainer.style.setProperty('--preview-width', previewBaseWidth * previewZoomLevel + 'px');
+    imagePreviewContainer.style.setProperty('--preview-height', previewBaseHeight * previewZoomLevel + 'px');
+    imagePreviewContainer.style.width = previewBaseWidth * previewZoomLevel + 'px';
+    imagePreviewContainer.style.height = previewBaseHeight * previewZoomLevel + 'px';
 }
 
 previewZoomInButton.addEventListener('click', function () {
@@ -588,7 +481,7 @@ function PuzzlePiece(x, y) {
     var targetLeft = x * puzzlePieceWidth - tabDepth;
     var targetTop = y * puzzlePieceHeight - tabDepth;
     var snapDistance = Math.max(puzzlePieceWidth, puzzlePieceHeight) * 0.45;
-    var spawnPosition = getEdgeSpawnPosition(pieceWidth, pieceHeight);
+    var spawnPosition = getEdgeSpawnPosition(pieceWidth, pieceHeight, imageWidth, imageHeight);
     var boardRect = puzzleBoard.getBoundingClientRect();
     var centerLeft = window.innerWidth / 2 - boardRect.left;
     var centerTop = window.innerHeight / 2 - boardRect.top;
@@ -638,7 +531,15 @@ function PuzzlePiece(x, y) {
     var backFace = document.createElement('div');
     frontFace.className = 'pieceFace pieceFront';
     backFace.className = 'pieceFace pieceBack';
-    var pieceClipPath = 'path("' + createPiecePath(x, y) + '")';
+    var pieceClipPath = 'path("' + createPiecePath(x, y, {
+        width: width,
+        height: height,
+        pieceWidth: puzzlePieceWidth,
+        pieceHeight: puzzlePieceHeight,
+        tabDepth: tabDepth,
+        horizontalEdges: horizontalEdges,
+        verticalEdges: verticalEdges
+    }) + '")';
     frontFace.style.clipPath = pieceClipPath;
     backFace.style.clipPath = pieceClipPath;
     frontFace.style.backgroundImage = 'url(' + url + ')';

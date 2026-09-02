@@ -21,7 +21,7 @@ body.is-dragging-background {
 #pieceShelf {
     position: fixed;
     z-index: 250;
-    top: 0;
+    top: 56px;
     bottom: 0;
     left: 0;
     display: flex;
@@ -374,8 +374,9 @@ body::-webkit-scrollbar-thumb:hover {
     z-index: 300;
     inset: 0;
     display: grid;
-    place-items: center;
-    padding: 24px;
+    align-content: start;
+    justify-items: center;
+    padding: clamp(72px, 10vh, 112px) 16px 24px;
     background: rgba(24, 17, 11, 0.45);
 }
 
@@ -384,9 +385,15 @@ body::-webkit-scrollbar-thumb:hover {
 }
 
 .completionPanel {
-    width: min(360px, 100%);
+    width: min(1100px, 100%);
+    min-height: min(30vh, 260px);
     box-sizing: border-box;
-    padding: 28px;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: clamp(24px, 5vw, 56px);
     border: 2px solid #3f2d1d;
     border-radius: 8px;
     background: #fff8ef;
@@ -396,14 +403,20 @@ body::-webkit-scrollbar-thumb:hover {
 }
 
 .completionPanel h2 {
+    grid-column: 1;
     margin: 0 0 8px;
 }
 
 .completionPanel p {
-    margin: 0 0 20px;
+    grid-column: 1;
+    margin: 0;
 }
 
 .completionPanel button {
+    grid-column: 1;
+    grid-row: 3;
+    justify-self: center;
+    margin-top: 8px;
     min-height: 38px;
     padding: 0 14px;
     border: 1px solid #3f2d1d;
@@ -417,6 +430,33 @@ body::-webkit-scrollbar-thumb:hover {
 
 .completionPanel button:hover {
     background: #f0f0f0;
+}
+
+@media (max-width: 600px) {
+    .completionMessage {
+        padding: 68px 12px 20px;
+    }
+
+    .completionPanel {
+        min-height: 30vh;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto;
+        gap: 10px;
+        padding: 24px 18px;
+        text-align: center;
+    }
+
+    .completionPanel h2,
+    .completionPanel p,
+    .completionPanel button {
+        grid-column: 1;
+        grid-row: auto;
+    }
+
+    .completionPanel button {
+        justify-self: center;
+        margin-top: 8px;
+    }
 }
 
 .puzzlePiece {
