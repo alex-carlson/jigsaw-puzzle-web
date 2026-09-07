@@ -266,14 +266,39 @@ function initializeEdgeMap() {
     verticalEdges = edgeMap.vertical;
 }
 
+function getGridDimensions(pieceCount, preferredColumns) {
+    var bestGrid = { columns: preferredColumns, rows: pieceCount / preferredColumns };
+    var bestScore = Infinity;
+
+    for (var columns = 1; columns <= pieceCount; columns++) {
+        if (pieceCount % columns !== 0) {
+            continue;
+        }
+
+        var rows = pieceCount / columns;
+        var gridAspectRatio = columns / rows;
+        var aspectDifference = Math.abs(Math.log(gridAspectRatio / imageAspectRatio));
+        var preferenceDifference = Math.abs(columns - preferredColumns) * 0.001;
+        var score = aspectDifference + preferenceDifference;
+
+        if (score < bestScore) {
+            bestScore = score;
+            bestGrid = { columns: columns, rows: rows };
+        }
+    }
+
+    return bestGrid;
+}
+
 function createPuzzle(pieceCount, columns) {
-    var state = savedPuzzleState && savedPuzzleState.pieceCount === pieceCount && savedPuzzleState.columns === columns
+    var grid = getGridDimensions(pieceCount, columns);
+    var state = savedPuzzleState && savedPuzzleState.pieceCount === pieceCount && savedPuzzleState.columns === grid.columns
         ? savedPuzzleState
         : null;
     updateBoardSize();
     puzzlePieceCount = pieceCount;
-    width = columns;
-    height = pieceCount / width;
+    width = grid.columns;
+    height = grid.rows;
     puzzlePieceWidth = imageWidth / width;
     puzzlePieceHeight = imageHeight / height;
     tabDepth = Math.min(puzzlePieceWidth, puzzlePieceHeight) * 0.22;
