@@ -752,6 +752,21 @@ function PuzzlePiece(x, y) {
         return rotation < 0 ? rotation + 360 : rotation;
     }
 
+    function normalizeGroupRotation(group, anchorPiece) {
+        if (!group || group.length < 2 || !anchorPiece) {
+            return;
+        }
+
+        var anchorRotation = getPieceRotation(anchorPiece);
+        group.forEach(function (piece) {
+            var pieceRotation = getPieceRotation(piece);
+            if (Math.abs(pieceRotation - anchorRotation) > 0.5) {
+                piece.style.setProperty('--piece-rotation', anchorRotation + 'deg');
+                piece._hasRotated = true;
+            }
+        });
+    }
+
     function moveGroup(group, horizontalDistance, verticalDistance) {
         group.forEach(function (piece) {
             piece.style.left = piece.offsetLeft + horizontalDistance + 'px';
@@ -766,6 +781,7 @@ function PuzzlePiece(x, y) {
         }
 
         var anchor = group[0];
+        normalizeGroupRotation(group, anchor);
         var anchorLeft = anchor.offsetLeft;
         var anchorTop = anchor.offsetTop;
         var anchorX = anchor._pieceData.x;
@@ -953,6 +969,7 @@ function PuzzlePiece(x, y) {
 
     function mergeGroups(firstGroup, secondGroup) {
         var mergedGroup = firstGroup.concat(secondGroup);
+        normalizeGroupRotation(mergedGroup, firstGroup[0] || secondGroup[0]);
         mergedGroup.forEach(function (piece) {
             piece._group = mergedGroup;
             piece.classList.add('is-grouped');
@@ -962,6 +979,7 @@ function PuzzlePiece(x, y) {
 
     function tryConnectToNeighbor() {
         var group = div._group;
+        normalizeGroupRotation(group, group[0]);
 
         for (var groupIndex = 0; groupIndex < group.length; groupIndex++) {
             var sourcePiece = group[groupIndex];
