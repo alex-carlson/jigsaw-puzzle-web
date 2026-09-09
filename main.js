@@ -694,17 +694,47 @@ function PuzzlePiece(x, y) {
         }
     }
 
+    function animatePieceRotation(piece, startRotation, targetRotation, onComplete) {
+        var startTime;
+        var duration = 180;
+
+        function animate(timestamp) {
+            startTime = startTime || timestamp;
+            var progress = Math.min(1, (timestamp - startTime) / duration);
+            var easedProgress = 1 - Math.pow(1 - progress, 3);
+            var rotation = startRotation + (targetRotation - startRotation) * easedProgress;
+            piece.style.setProperty('--piece-rotation', rotation + 'deg');
+
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+                return;
+            }
+
+            piece.style.setProperty('--piece-rotation', targetRotation + 'deg');
+            piece._isRotating = false;
+            if (onComplete) {
+                onComplete();
+            }
+        }
+
+        piece._isRotating = true;
+        requestAnimationFrame(animate);
+    }
+
     function rotatePiece(snapToNearest, clockwise) {
-        var rotation = parseFloat(div.style.getPropertyValue('--piece-rotation')) || 0;
+        var startRotation = parseFloat(div.style.getPropertyValue('--piece-rotation')) || 0;
+        var targetRotation = startRotation;
+
         if (!div._hasRotated) {
-            rotation = snapToNearest
-                ? Math.round(rotation / 90) * 90
-                : Math.round((rotation + (clockwise ? -90 : 90)) / 90) * 90;
+            targetRotation = snapToNearest
+                ? Math.round(startRotation / 90) * 90 + (clockwise ? -90 : 90)
+                : Math.round((startRotation + (clockwise ? -90 : 90)) / 90) * 90;
             div._hasRotated = true;
         } else {
-            rotation = Math.round(rotation / 90) * 90 + (clockwise ? -90 : 90);
+            targetRotation = Math.round(startRotation / 90) * 90 + (clockwise ? -90 : 90);
         }
-        div.style.setProperty('--piece-rotation', rotation + 'deg');
+
+        animatePieceRotation(div, startRotation, targetRotation);
     }
 
     function showLockEffect() {
